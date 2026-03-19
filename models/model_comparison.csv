@@ -1,0 +1,9 @@
+model,base_model,variant,mae,rmse,r2,cv_mae,best_params,n_train_rows,n_test_rows,n_features
+GradientBoostingRegressor_tuned,GradientBoostingRegressor,tuned,1.7654985223068476,2.3297116308526036,0.3764350747976625,1.77851784736388,"{'model__learning_rate': 0.1, 'model__max_depth': 3, 'model__n_estimators': 200}",81412,20354,17
+RandomForestRegressor_tuned,RandomForestRegressor,tuned,1.7744262526450814,2.3399193871216504,0.37095873736640383,1.7878139720532935,"{'model__max_depth': 10, 'model__min_samples_leaf': 3, 'model__n_estimators': 200}",81412,20354,17
+GradientBoostingRegressor,GradientBoostingRegressor,baseline,1.7824237474373543,2.347388726523017,0.3669363578996859,,{},81412,20354,17
+RandomForestRegressor,RandomForestRegressor,baseline,1.802461393454896,2.368932982687256,0.3552625573586502,,{},81412,20354,17
+LinearRegression,LinearRegression,baseline,1.8415518999919682,2.421267643733634,0.3264607022106355,,{},81412,20354,17
+ElasticNet_tuned,ElasticNet,tuned,1.846845804481252,2.4271140333730528,0.32320412109414576,1.865770975623448,"{'model__alpha': 0.01, 'model__l1_ratio': 0.2}",81412,20354,17
+ElasticNet,ElasticNet,baseline,1.8822489993486367,2.4701556227592087,0.2989871590549048,,{},81412,20354,17
+DummyRegressor,DummyRegressor,baseline,2.328324556687949,2.950396435158394,-8.771437309351704e-05,,{},81412,20354,17
