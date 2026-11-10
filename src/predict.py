@@ -34,20 +34,9 @@ def build_example_input() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "race": "Caucasian",
-                "gender": "Female",
                 "age": "[60-70)",
                 "admission_type_id": 1,
-                "discharge_disposition_id": 1,
                 "admission_source_id": 7,
-                "max_glu_serum": "None",
-                "A1Cresult": ">8",
-                "insulin": "Up",
-                "change": "Ch",
-                "diabetesMed": "Yes",
-                "num_lab_procedures": 42,
-                "num_procedures": 1,
-                "num_medications": 15,
                 "number_outpatient": 0,
                 "number_emergency": 1,
                 "number_inpatient": 0,
@@ -60,8 +49,6 @@ def main() -> None:
     """Load the trained model and print a sample LOS prediction."""
     model = load_model()
 
-    # Replace the values below with your own patient or encounter details.
-    # Keep the same column names so the saved pipeline can preprocess them correctly.
     example_row = build_example_input()
 
     prediction = model.predict(example_row)[0]

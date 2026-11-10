@@ -13,10 +13,9 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import ElasticNet, LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
-from preprocess import prepare_dataset, resolve_repo_root
+from preprocess import load_raw_data, prepare_dataset, resolve_repo_root, split_encounters
 from train import (
     BEST_MODEL_FILENAME,
     DEFAULT_RANDOM_STATE,
@@ -50,12 +49,8 @@ def prepare_evaluation_split(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, dict[str, object]]:
     """Recreate the same prepared dataset and train/test split used during training."""
     X, y, _, feature_metadata = prepare_dataset(data_path=data_path)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=test_size,
-        random_state=random_state,
-    )
+    groups = feature_metadata.pop("patient_groups")
+    X_train, X_test, y_train, y_test = split_encounters(X, y, groups, test_size, random_state)
     return X_train, X_test, y_train, y_test, feature_metadata
 
 
@@ -116,7 +111,8 @@ def plot_error_analysis(
         age_error = (
             pd.DataFrame({"age": X_test["age"].fillna("Missing"), "absolute_error": abs_errors})
             .groupby("age")["absolute_error"]
-            .mean()
+            .agg(["mean", "size"])
+            .loc[lambda stats: stats["size"].ge(100), "mean"]
         )
         try:
             age_error = age_error.reindex(
@@ -126,7 +122,7 @@ def plot_error_analysis(
             pass
         axes[2].bar(age_error.index.astype(str), age_error.values, color="#54A24B")
         axes[2].tick_params(axis="x", rotation=45)
-        axes[2].set_title("Average absolute error by age group")
+        axes[2].set_title("Mean absolute error by age (n ≥ 100)")
         axes[2].set_xlabel("Age group")
         axes[2].set_ylabel("Average absolute error")
     else:
@@ -137,11 +133,12 @@ def plot_error_analysis(
         gender_error = (
             pd.DataFrame({"gender": X_test["gender"].fillna("Missing"), "absolute_error": abs_errors})
             .groupby("gender")["absolute_error"]
-            .mean()
+            .agg(["mean", "size"])
+            .loc[lambda stats: stats["size"].ge(100), "mean"]
             .sort_values(ascending=False)
         )
         axes[3].bar(gender_error.index.astype(str), gender_error.values, color="#E45756")
-        axes[3].set_title("Average absolute error by gender")
+        axes[3].set_title("Mean absolute error by gender (n ≥ 100)")
         axes[3].set_xlabel("Gender")
         axes[3].set_ylabel("Average absolute error")
     else:
@@ -220,14 +217,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-size",
         type=float,
-        default=DEFAULT_TEST_SIZE,
-        help="Fraction of rows reserved for testing.",
+        default=None,
+        help="Optional check against the saved holdout fraction.",
     )
     parser.add_argument(
         "--random-state",
         type=int,
-        default=DEFAULT_RANDOM_STATE,
-        help="Random seed for consistent train/test splitting.",
+        default=None,
+        help="Optional check against the saved random seed.",
     )
     return parser.parse_args()
 
@@ -236,11 +233,15 @@ def main() -> None:
     """Run LOS model evaluation from the command line."""
     args = parse_args()
     model_pipeline = load_model(model_path=args.model_path, output_dir=args.output_dir)
-    _, X_test, _, y_test, feature_metadata = prepare_evaluation_split(
-        data_path=args.data_path,
-        test_size=args.test_size,
-        random_state=args.random_state,
-    )
+    split = getattr(model_pipeline, "evaluation_split_", None)
+    if split is None:
+        raise ValueError("Retrain this model with src/train.py to save the patient-grouped split.")
+    for name in ("test_size", "random_state"):
+        override = getattr(args, name)
+        if override is not None and override != split[name]:
+            raise ValueError(f"{name} must match training ({split[name]}).")
+
+    _, X_test, _, y_test, feature_metadata = prepare_evaluation_split(data_path=args.data_path, **split)
 
     predictions = model_pipeline.predict(X_test)
     metrics = evaluate_predictions(y_test, predictions)
@@ -256,7 +257,7 @@ def main() -> None:
     plot_error_analysis(
         y_test=y_test,
         predictions=predictions,
-        X_test=X_test,
+        X_test=X_test.join(load_raw_data(args.data_path)[["gender"]]),
         output_dir=args.output_dir,
     )
     show_model_interpretability(model_pipeline)

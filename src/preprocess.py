@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
@@ -16,33 +17,10 @@ TARGET_COLUMN = "time_in_hospital"
 RAW_DATA_DIR = Path("data") / "raw"
 RAW_DATA_FILE = "diabetic_data.csv"
 
-CANDIDATE_CATEGORICAL_FEATURES = [
-    "race",
-    "gender",
-    "age",
-    "admission_type_id",
-    "discharge_disposition_id",
-    "admission_source_id",
-    "max_glu_serum",
-    "A1Cresult",
-    "insulin",
-    "change",
-    "diabetesMed",
-]
-
-CANDIDATE_NUMERIC_FEATURES = [
-    "num_lab_procedures",
-    "num_procedures",
-    "num_medications",
-    "number_outpatient",
-    "number_emergency",
-    "number_inpatient",
-]
-
-# Diagnosis code fields such as diag_1, diag_2, and diag_3 are excluded from the
-# first production pipeline because they typically need careful cleaning and
-# clinical grouping. A future enhancement can add diagnosis-category features
-# once a consistent grouping strategy is defined.
+# These fields are available at admission or describe prior utilization.
+CANDIDATE_CATEGORICAL_FEATURES = ["age", "admission_type_id", "admission_source_id"]
+CANDIDATE_NUMERIC_FEATURES = ["number_outpatient", "number_emergency", "number_inpatient"]
+PATIENT_COLUMN = "patient_nbr"
 
 
 def resolve_repo_root() -> Path:
@@ -134,6 +112,9 @@ def prepare_dataset(data_path: str | Path | None = None) -> tuple[pd.DataFrame, 
     cleaned_df, y = clean_target(raw_df, target_column=TARGET_COLUMN)
     categorical_features, numeric_features = get_available_feature_lists(cleaned_df)
 
+    if cleaned_df[PATIENT_COLUMN].isna().any():
+        raise ValueError("Patient identifiers are required for patient-disjoint evaluation.")
+
     selected_features = numeric_features + categorical_features
     X = cleaned_df[selected_features].copy()
     preprocessor = build_preprocessor(
@@ -148,9 +129,17 @@ def prepare_dataset(data_path: str | Path | None = None) -> tuple[pd.DataFrame, 
         "categorical_features": categorical_features,
         "n_rows": len(cleaned_df),
         "source_path": str(resolve_data_path(data_path)),
+        "patient_groups": cleaned_df[PATIENT_COLUMN],
     }
 
     return X, y, preprocessor, feature_metadata
+
+
+def split_encounters(X, y, patient_groups, test_size, random_state):
+    """Keep every encounter for a patient on one side of the split."""
+    splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    train_rows, test_rows = next(splitter.split(X, y, groups=patient_groups))
+    return X.iloc[train_rows], X.iloc[test_rows], y.iloc[train_rows], y.iloc[test_rows]
 
 
 def main() -> None:
@@ -159,7 +148,7 @@ def main() -> None:
     print(f"Prepared feature matrix shape: {X.shape}")
     print(f"Prepared target shape: {y.shape}")
     print("Feature metadata:")
-    print(feature_metadata)
+    print({key: value for key, value in feature_metadata.items() if key != "patient_groups"})
     print("Preprocessor:")
     print(preprocessor)
 
