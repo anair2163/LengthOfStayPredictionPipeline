@@ -1,92 +1,31 @@
-# Length of Stay Prediction Pipeline
+# Admission-Time Hospital Length of Stay
 
-This repository contains a machine learning workflow for predicting hospital length of stay (LOS) using the UCI Diabetes 130-US Hospitals dataset.
+Can information available at admission improve a simple length-of-stay estimate for historical hospital encounters involving diabetes?
 
-## Business Problem
+[Model evaluation](notebooks/los_regression_model.ipynb) · [Exploratory notebook](notebooks/exploration.ipynb) · [Results CSV](models/model_comparison.csv)
 
-Hospitals need better visibility into expected inpatient stay duration to support bed planning, discharge coordination, staffing, and operational decision-making. This project frames `time_in_hospital` as the prediction target and builds a lightweight pipeline for exploration, preprocessing, model training, evaluation, and sample inference.
+## Result
 
-## Dataset
+The four-day training median won model selection. On the same patient-grouped training folds, it achieved **2.268 days MAE**, compared with **2.308 days** for the best-performing nonconstant candidate, gradient boosting. On 20,153 held-out encounters, the selected median benchmark had **2.254 days MAE** and **2.993 days RMSE**. None of the tested models justified replacing the median for this cohort and feature set.
 
-The project uses the UCI Diabetes 130-US Hospitals dataset, which includes patient encounter, admission, discharge, and utilization fields relevant to LOS analysis.
+## Evaluation design
 
-Required raw files:
+- **Prediction point:** Admission. Inputs include age band, admission type and source, and counts of prior outpatient, emergency and inpatient visits.
+- **Target:** Days in hospital, observed from 1 to 14 in the [UCI 1999–2008 diabetes dataset](https://archive.ics.uci.edu/dataset/296/diabetes-130-us-hospitals-for-years-1999-2008).
+- **Validation:** Keep each patient's encounters together. Compare the same grouped training folds using MAE, then score the selected model on patients held out from selection.
+- **Interpretation:** Post-admission treatment counts and discharge disposition are used only for retrospective exploration. Generalization to other periods, hospitals and stays beyond 14 days remains untested.
 
-- `diabetic_data.csv`
-- `IDS_mapping.csv`
+[View the held-out error analysis](models/evaluation_error_analysis.png).
 
-Place both files in `data/raw/` before running the notebook or Python scripts. Raw data is not committed to GitHub and `data/raw/` is intentionally ignored by git.
+## Reproduce
 
-Additional notes are in [data/README.md](/Users/ahannair/Desktop/LengthOfStayPredictionPipeline/data/README.md).
-
-## Repo Structure
-
-```text
-LengthOfStayPredictionPipeline/
-├── data/
-│   ├── raw/
-│   └── README.md
-├── notebooks/
-│   └── exploration.ipynb
-├── src/
-│   ├── preprocess.py
-│   ├── train.py
-│   ├── evaluate.py
-│   └── predict.py
-├── models/
-├── README.md
-├── requirements.txt
-└── .gitignore
-```
-
-- `notebooks/exploration.ipynb` contains exploratory analysis focused on LOS and business context.
-- `src/preprocess.py` loads raw data and builds the shared preprocessing transformer.
-- `src/train.py` compares baseline and lightly tuned regression models.
-- `src/evaluate.py` evaluates the saved best model and produces error analysis.
-- `src/predict.py` runs a sample LOS prediction with the saved pipeline.
-- `models/` stores trained artifacts and evaluation outputs after the pipeline is run.
-
-## Setup
-
-1. Create and activate a virtual environment.
-2. Install dependencies:
+Place UCI's `diabetic_data.csv` in `data/raw/`. Add `IDS_mapping.csv` for the exploratory notebook. From the repository root:
 
 ```bash
-pip install -r requirements.txt
-```
-
-3. Add `diabetic_data.csv` and `IDS_mapping.csv` to `data/raw/`.
-
-## Run the Notebook
-
-Launch Jupyter from the repository root:
-
-```bash
-jupyter notebook
-```
-
-Then open `notebooks/exploration.ipynb` to review data quality, target behavior, grouped LOS summaries, and business-oriented charts.
-
-## Train and Evaluate
-
-Train the models and save the best pipeline:
-
-```bash
+python -m pip install -r requirements.txt
 python src/train.py
-```
-
-Evaluate the saved best model and generate error analysis plots:
-
-```bash
 python src/evaluate.py
-```
-
-Run a simple example prediction:
-
-```bash
 python src/predict.py
 ```
 
-## Results
-
-Model metrics are generated after running the training and evaluation scripts. The comparison table is saved to `models/model_comparison.csv`, the best fitted pipeline is saved to `models/best_los_model.joblib`, and evaluation outputs such as error analysis plots are written to `models/`.
+Training writes the model comparison and fitted pipeline to `models/`. Retrain before inference when using a different scikit-learn version.
